@@ -161,20 +161,20 @@ static char *dispatch = "sqliteManager";
         sql = [sql stringByAppendingString:desc];
     }
     sql = [sql substringToIndex:sql.length -2];
-    sql = [NSString stringWithFormat:@"%@ where uniId = '%@'", sql, [model uniId]];
+    sql = [NSString stringWithFormat:@"%@ where _uniId = '%@'", sql, [model uniId]];
     [self execSql:sql];
 }
 
 -(void)deleteWithModel:(id)model{
     NSString *tbName = NSStringFromClass([model class]);
-    NSString *sql = [NSString stringWithFormat:@"delete from %@ where uniId = '%@'", tbName, [model uniId]];
+    NSString *sql = [NSString stringWithFormat:@"delete from %@ where _uniId = '%@'", tbName, [model uniId]];
     [self execSql:sql];
 }
 
 //查询单条记录
 -(void)searchWithModel:(id)model result:(void(^)(id model))result{
     NSString *tbName = NSStringFromClass([model class]);
-    NSString *sql = [NSString stringWithFormat:@"select * from %@ where uniId = '%@'",tbName, [model valueForKey:@"uniId"]];
+    NSString *sql = [NSString stringWithFormat:@"select * from %@ where _uniId = '%@'",tbName, [model valueForKey:@"uniId"]];
     void (^success)(NSArray *model) = ^(NSArray *array){
         if (array.count>0) {
             result(array[0]);
@@ -219,38 +219,46 @@ static char *dispatch = "sqliteManager";
 //执行插入事务语句
 -(void)execInsertTransactionSql:(NSMutableArray *)transactionSql
 {
-    //使用事务，提交插入sql语句
-    @try{
-        char *errorMsg;
-        if (sqlite3_exec(sqliteManager, "BEGIN", NULL, NULL, &errorMsg)==SQLITE_OK)
-        {
-            NSLog(@"启动事务成功");
-            sqlite3_free(errorMsg);
-            sqlite3_stmt *statement;
-            for (int i = 0; i<transactionSql.count; i++)
+    __block typeof(self) weakSelf = self;
+    dispatch_async(sql_exec_queue, ^{
+        [weakSelf open];
+        //使用事务，提交插入sql语句
+        @try{
+            char *errorMsg;
+            if (sqlite3_exec(sqliteManager, "BEGIN", NULL, NULL, &errorMsg)==SQLITE_OK)
             {
-                if (sqlite3_prepare_v2(sqliteManager,[[transactionSql objectAtIndex:i] UTF8String], -1, &statement,NULL)==SQLITE_OK)
+                NSLog(@"启动事务成功");
+                sqlite3_free(errorMsg);
+                sqlite3_stmt *statement;
+                for (int i = 0; i<transactionSql.count; i++)
                 {
-                    if (sqlite3_step(statement)!=SQLITE_DONE) sqlite3_finalize(statement);
+                    if (sqlite3_prepare_v2(sqliteManager,[[transactionSql objectAtIndex:i] UTF8String], -1, &statement,NULL)==SQLITE_OK)
+                    {
+                        if (sqlite3_step(statement)!=SQLITE_DONE) sqlite3_finalize(statement);
+                    }
                 }
+                if (sqlite3_exec(sqliteManager, "COMMIT", NULL, NULL, &errorMsg)==SQLITE_OK)   NSLog(@"提交事务成功");
+                sqlite3_free(errorMsg);
             }
-            if (sqlite3_exec(sqliteManager, "COMMIT", NULL, NULL, &errorMsg)==SQLITE_OK)   NSLog(@"提交事务成功");
+            else sqlite3_free(errorMsg);
+        }
+        @catch(NSException *e)
+        {
+            char *errorMsg;
+            if (sqlite3_exec(sqliteManager, "ROLLBACK", NULL, NULL, &errorMsg)==SQLITE_OK)  NSLog(@"回滚事务成功");
             sqlite3_free(errorMsg);
         }
-        else sqlite3_free(errorMsg);
-    }
-    @catch(NSException *e)
-    {
-        char *errorMsg;
-        if (sqlite3_exec(sqliteManager, "ROLLBACK", NULL, NULL, &errorMsg)==SQLITE_OK)  NSLog(@"回滚事务成功");
-        sqlite3_free(errorMsg);
-    }
-    @finally{}
+        @finally{
+            [weakSelf close];
+        }
+    });
 }
 //执行sql语句
 -(void)execSql:(NSString *)sql
 {
+    __block typeof(self) weakSelf = self;
     dispatch_async(sql_exec_queue, ^{
+        [weakSelf open];
         char *err;
         if (sqlite3_exec(sqliteManager, [sql UTF8String], NULL, NULL, &err) != SQLITE_OK) {
             sqlite3_close(sqliteManager);
@@ -258,6 +266,7 @@ static char *dispatch = "sqliteManager";
         }else{
             NSLog(@"操作成功");
         }
+        [weakSelf close];
     });
 }
 
