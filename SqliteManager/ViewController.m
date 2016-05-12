@@ -23,9 +23,7 @@
     // Do any additional setup after loading the view, typically from a nib.
     
     [[SqliteManager shareManager] createTBWithClass:[People class]];
-    
-    NSThread *thread = [[NSThread alloc]initWithTarget:self selector:@selector(test:) object:nil];
-    [thread start];
+
     for (int i = 0; i<100; i++) {
         People *people = [[People alloc]init];
         people.uniId = [@"201100" stringByAppendingString:[@(i) description]];
@@ -38,12 +36,9 @@
         School *school = [[School alloc]init];
         school.name = @"长江大学";
         people.school = school;
-        
-        [[SqliteManager shareManager] updateWithModel:people updateInfo:@{@"name": @"hello kity"}];
-        
-//        [[SqliteManager shareManager] deleteWithModel:people];
+        [[SqliteManager shareManager]updateWithModel:people updateInfo:@{@"_age": @"20"}];
     }
-
+    
 }
 
 - (void)didReceiveMemoryWarning {
