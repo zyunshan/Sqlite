@@ -66,7 +66,7 @@
     }];
     
     //单条查询
-    [[SqliteManager shareManager]searchWithModel:people2 result:^(id model) {
+    [[SqliteManager shareManager]searchWithModel:people1 result:^(id model) {
         
     }];
 }

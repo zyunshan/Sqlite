@@ -192,7 +192,9 @@ static char *dispatch = "sqliteManager";
 }
 
 -(void)searchTB:(NSString *)tbName withSql:(NSString *)sql result:(void(^)(id model))result{
+    __block typeof(self) weakSelf = self;
     dispatch_async(sql_exec_queue, ^{
+        [weakSelf open];
         sqlite3_stmt * statement;
         Class clss = NSClassFromString(tbName);
         NSArray *properties = [self getIvarsOfClass:clss];
@@ -213,6 +215,7 @@ static char *dispatch = "sqliteManager";
                 result(modelArray);
             });
         }
+        [weakSelf close];
     });
 }
 
